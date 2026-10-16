@@ -1,6 +1,6 @@
 import { convertProcessSignalToExitCode } from "node:util";
 import { readConfig, setUser } from "./config.js";
-import { createFeed, createFeedFollow, deleteFeedFollow, getFeedByUrl, getFeedFollowsForUser, getFeeds } from "./lib/db/queries/feeds.js";
+import { createFeed, createFeedFollow, deleteFeedFollow, getFeedByUrl, getFeedFollowsForUser, getFeeds, getNextFeedToFetch, markFeedFetched } from "./lib/db/queries/feeds.js";
 import { createUser, deleteUsers, getUser, getUsers } from "./lib/db/queries/users.js";
 import { Feed, feeds, User } from "./lib/db/schema.js";
 import { fetchFeed } from "./lib/rss.js";
@@ -35,6 +35,32 @@ type UserCommandHandler = (
     
   };
 }
+
+function parseDuration(durationStr: string): number {
+  const match = durationStr.match(/^(\d+)(ms|s|m|h)$/);
+  if (!match) {
+    throw new Error("Invalid duration. Use something like 30s, 1m or 1h");
+  }
+  const units = { ms: 1, s: 1000, m: 60000, h: 3600000 } as const;
+  return Number(match[1]) * units[match[2] as keyof typeof units];
+}
+
+async function scrapeFeeds() {
+  const feed = await getNextFeedToFetch();
+  if (!feed) {
+    console.log("No feeds to fetch");
+    return;
+  }
+
+  await markFeedFetched(feed.id);
+  console.log(`Fetching ${feed.name}...`);
+
+  const result = await fetchFeed(feed.url);
+  for (const item of result.channel.item) {
+    console.log(item.title);
+  }
+}
+
 
  
 
@@ -88,10 +114,29 @@ export async function handlerReset(cmdName: string){
 
 }
 
-export async function handlerAgg(cmdName: string){
-  const feed = await fetchFeed(url);
-  console.log(JSON.stringify(feed, null, 2));
+export async function handlerAgg(cmdName: string, ...args: string[]) {
+  if (args.length !== 1) {
+    throw new Error("Usage: agg <time_between_reqs>, e.g. agg 1m");
+  }
 
+  const timeBetweenRequests = parseDuration(args[0]);
+  console.log(`Collecting feeds every ${args[0]}`);
+
+  const handleError = (err: unknown) =>
+    console.error(err instanceof Error ? err.message : err);
+
+  scrapeFeeds().catch(handleError);
+  const interval = setInterval(() => {
+    scrapeFeeds().catch(handleError);
+  }, timeBetweenRequests);
+
+  await new Promise<void>((resolve) => {
+    process.on("SIGINT", () => {
+      console.log("Shutting down feed aggregator...");
+      clearInterval(interval);
+      resolve();
+    });
+  });
 }
 
 export async function handlerAddFeed(cmdName: string, user: User, ...args: string[]){
