@@ -1,7 +1,7 @@
-import { convertProcessSignalToExitCode } from "node:util";
 import { readConfig, setUser } from "./config.js";
 import { createFeed, createFeedFollow, deleteFeedFollow, getFeedByUrl, getFeedFollowsForUser, getFeeds, getNextFeedToFetch, markFeedFetched } from "./lib/db/queries/feeds.js";
 import { createUser, deleteUsers, getUser, getUsers } from "./lib/db/queries/users.js";
+import { createPost, getPostsForUser } from "./lib/db/queries/posts.js";
 import { Feed, feeds, User } from "./lib/db/schema.js";
 import { fetchFeed } from "./lib/rss.js";
 
@@ -57,8 +57,22 @@ async function scrapeFeeds() {
 
   const result = await fetchFeed(feed.url);
   for (const item of result.channel.item) {
-    console.log(item.title);
+  const date = new Date(item.pubDate);
+  const publishedAt = isNaN(date.getTime()) ? null : date;
+
+  try {
+    await createPost({
+      title: item.title,
+      url: item.link,
+      description: item.description ?? null,
+      publishedAt,
+      feedId: feed.id,
+    });
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : err);
   }
+}
+console.log(`Saved posts from ${feed.name}`);
 }
 
 
@@ -208,6 +222,21 @@ export async function handlerUnfollow(cmdName: string, user: User, ...args: stri
 }
 
 
+export async function handlerBrowse(cmdName: string, user: User, ...args: string[]) {
+  const limit = args.length > 0 ? parseInt(args[0]) : 2;
+
+  if (isNaN(limit) || limit < 1) {
+    throw new Error("limit must be a positive number");
+  }
+
+  const userPosts = await getPostsForUser(user.id, limit);
+
+  for (const post of userPosts) {
+    console.log(post.title);
+    console.log(post.url);
+    console.log("---");
+  }
+}
 
 
 export async function handlerUsers(cmdName: string){
