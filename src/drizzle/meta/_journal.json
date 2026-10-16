@@ -43,6 +43,13 @@
       "when": 1792174751383,
       "tag": "0005_hot_apocalypse",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792175889236,
+      "tag": "0006_pink_lockjaw",
+      "breakpoints": true
     }
   ]
 }
