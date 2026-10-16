@@ -1,13 +1,42 @@
+import { convertProcessSignalToExitCode } from "node:util";
 import { readConfig, setUser } from "./config.js";
-import { createFeed, getFeeds } from "./lib/db/queries/feeds.js";
+import { createFeed, createFeedFollow, deleteFeedFollow, getFeedByUrl, getFeedFollowsForUser, getFeeds } from "./lib/db/queries/feeds.js";
 import { createUser, deleteUsers, getUser, getUsers } from "./lib/db/queries/users.js";
-import { Feed, User } from "./lib/db/schema.js";
+import { Feed, feeds, User } from "./lib/db/schema.js";
 import { fetchFeed } from "./lib/rss.js";
 
 export type CommandHandler = (cmdName: string, ...args: string[]) => Promise<void>;
 export type CommandsRegistry = Record<string, CommandHandler>
 
+type UserCommandHandler = (
+  cmdName: string,
+  user: User,
+  ...args: string[]
+) => Promise<void>;
+
+
  const url = "https://www.wagslane.dev/index.xml";
+
+ export function middlewareLoggedIn(handler: UserCommandHandler): CommandHandler {
+  return async (cmdName: string, ...args: string[]) => {
+    const currentUserName = readConfig().currentUserName
+    if (!currentUserName){
+      throw new Error("User not found");
+    }
+
+    const user = await getUser(currentUserName);
+    if (!user){
+      throw new Error(`User not found`);
+    }
+
+    await handler(cmdName, user, ...args)
+
+    
+    
+  };
+}
+
+ 
 
 
 export async function handlerLogin(cmdName: string, ...args: string[]){
@@ -65,7 +94,7 @@ export async function handlerAgg(cmdName: string){
 
 }
 
-export async function handlerAddFeed(cmdName: string, ...args: string[]){
+export async function handlerAddFeed(cmdName: string, user: User, ...args: string[]){
   const name = args[0];
   const feedURL = args[1];
   
@@ -73,19 +102,12 @@ export async function handlerAddFeed(cmdName: string, ...args: string[]){
     throw new Error("Missing arguments values <name> and <url>");
   }
 
-  const currentUserName = readConfig().currentUserName;
-  if (!currentUserName){
-    throw new Error("Please login first...");
-  }
-  const user = await getUser(currentUserName);
-
-  if (!user){
-    throw new Error("User not found..");
-  }
-
   const feed = await createFeed(name, feedURL, user.id);
+  const feedfollows = await createFeedFollow(user.id, feed.id);
+  
 
   printFeed(feed, user);
+  console.log(feedfollows.feedName, feedfollows.userName);
 
 }
 
@@ -100,6 +122,44 @@ export async function handlerFeeds(cmdName: string){
     console.log(feed.FeedName, feed.url, feed.userName);
   }
 
+}
+
+export async function handlerFollow(cmdName: string, user: User, ...args: string[]){
+   const feedURL = args[0];
+  
+  if (args.length !== 1){
+    throw new Error("Missing arguments values <name> and <url>");
+  }
+
+
+  const feed = await getFeedByUrl(feedURL);
+  
+  if (!feed){
+    throw new Error("Feed not found");
+  }
+
+  const feedFollow = await createFeedFollow(user.id, feed.id);
+  console.log(feedFollow.feedName, feedFollow.userName);
+
+}
+
+export async function handlerFollowing(cmdName: string, user: User){
+  const feedFollows = await getFeedFollowsForUser(user.id);
+
+  for (const feedFollow of feedFollows){
+    console.log(feedFollow.feedName)
+  }
+
+}
+
+export async function handlerUnfollow(cmdName: string, user: User, ...args: string[]){
+  if (args.length !== 1){
+    throw new Error("Missing argument");
+  }
+
+  await deleteFeedFollow(user.id, args[0]);
+
+  console.log(`You decided to unfollow ${args[0]}`);
 }
 
 
