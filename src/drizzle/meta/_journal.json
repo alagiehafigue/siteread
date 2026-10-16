@@ -29,6 +29,20 @@
       "when": 1792151645453,
       "tag": "0003_blue_la_nuit",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792163527338,
+      "tag": "0004_whole_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792174751383,
+      "tag": "0005_hot_apocalypse",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "feeds_follow" ADD COLUMN "last_fetched_at" timestamp;
