@@ -1,5 +1,5 @@
-import { setUser } from "./config.js";
-import { createUser, deleteUsers, getUser } from "./lib/db/queries/users.js";
+import { readConfig, setUser } from "./config.js";
+import { createUser, deleteUsers, getUser, getUsers } from "./lib/db/queries/users.js";
 
 export type CommandHandler = (cmdName: string, ...args: string[]) => Promise<void>;
 export type CommandsRegistry = Record<string, CommandHandler>
@@ -47,7 +47,7 @@ export async function handlerRegister(cmdName: string, ...args: string[]){
 
 export async function handlerReset(cmdName: string){
 
-  if (!cmdName){
+  if (!cmdName || cmdName !== "reset"){
     throw new Error("Missing command try adding <reset>..")
   }
 
@@ -55,6 +55,19 @@ export async function handlerReset(cmdName: string){
 
   console.log(`Users deleteted successfully ${deletedUsers}`);
 
+}
+
+export async function handlerUsers(cmdName: string){
+  if (!cmdName || cmdName === "user"){
+    throw new Error("Missing command or try adding <user>..")
+  }
+
+  const users = await getUsers();
+  const currentUserName = readConfig().currentUserName;
+
+  for (const user of users){
+    console.log(`* ${user.name} ${user.name === currentUserName && "(current)"}`)
+  }
 }
 
 export function registerCommand(registry: CommandsRegistry, cmdName: string, handler: CommandHandler){
